@@ -33,6 +33,25 @@ static WebView::DownloadRecord example_download(u64 id = 7)
         .segments = { { 0, 2047, 1024 }, { 2048, 4095, 2048 } },
         .created_time = UnixDateTime::from_seconds_since_epoch(1000),
         .can_restart_from_zero = true,
+        .status = 1, // Paused - resumable.
+    };
+}
+
+static WebView::DownloadRecord example_completed_download(u64 id = 42)
+{
+    return WebView::DownloadRecord {
+        .id = id,
+        .url = "https://cdn.example.com/finished.zip"_string,
+        .display_url = "https://example.com/finished.zip"_string,
+        .destination = "/home/anon/Downloads/finished.zip"_string,
+        .temporary_destination = String {},
+        .total_size = 2048,
+        .etag = {},
+        .last_modified = {},
+        .segments = {},
+        .created_time = UnixDateTime::from_seconds_since_epoch(2000),
+        .can_restart_from_zero = false,
+        .status = 2, // Completed.
     };
 }
 
@@ -161,13 +180,70 @@ TEST_CASE(a_download_with_nonsensical_segment_offsets_is_skipped)
     EXPECT_EQ(downloads.first().id, 1u);
 }
 
+TEST_CASE(completed_downloads_round_trip)
+{
+    auto database = create_database();
+    auto store = create_store(database);
+
+    store->save_download(example_completed_download());
+
+    EXPECT(store->resumable_downloads().is_empty());
+
+    auto downloads = store->completed_downloads();
+    EXPECT_EQ(downloads.size(), 1u);
+
+    auto const& download = downloads.first();
+    EXPECT_EQ(download.id, 42u);
+    EXPECT_EQ(download.url, "https://cdn.example.com/finished.zip"_string);
+    EXPECT_EQ(download.display_url, "https://example.com/finished.zip"_string);
+    EXPECT_EQ(download.destination, "/home/anon/Downloads/finished.zip"_string);
+    EXPECT_EQ(download.total_size, 2048u);
+    EXPECT_EQ(download.created_time, UnixDateTime::from_seconds_since_epoch(2000));
+    EXPECT_EQ(download.status, 2u);
+}
+
+TEST_CASE(resumable_and_completed_downloads_do_not_mix)
+{
+    auto database = create_database();
+    auto store = create_store(database);
+
+    store->save_download(example_download(1));
+    store->save_download(example_completed_download(2));
+
+    auto resumable = store->resumable_downloads();
+    EXPECT_EQ(resumable.size(), 1u);
+    EXPECT_EQ(resumable.first().id, 1u);
+
+    auto completed = store->completed_downloads();
+    EXPECT_EQ(completed.size(), 1u);
+    EXPECT_EQ(completed.first().id, 2u);
+}
+
+TEST_CASE(a_download_can_transition_from_resumable_to_completed)
+{
+    auto database = create_database();
+    auto store = create_store(database);
+
+    store->save_download(example_download(5));
+    EXPECT_EQ(store->resumable_downloads().size(), 1u);
+    EXPECT(store->completed_downloads().is_empty());
+
+    auto finished = example_completed_download(5);
+    store->save_download(finished);
+
+    EXPECT(store->resumable_downloads().is_empty());
+    EXPECT_EQ(store->completed_downloads().size(), 1u);
+}
+
 TEST_CASE(a_disabled_store_remembers_nothing)
 {
     auto store = WebView::DownloadStore::create_disabled();
 
     store->save_download(example_download());
+    store->save_download(example_completed_download());
 
     EXPECT(store->resumable_downloads().is_empty());
+    EXPECT(store->completed_downloads().is_empty());
     EXPECT_EQ(store->maximum_download_id(), 0u);
 
     store->remove_download(7);
@@ -205,6 +281,10 @@ TEST_CASE(a_database_left_at_an_older_schema_is_brought_forward)
     EXPECT_EQ(downloads.first().id, 5u);
 
     EXPECT(!downloads.first().can_restart_from_zero);
+    // Rows from before the status column existed default to Paused (resumable), matching how they
+    // were already always treated on restore.
+    EXPECT_EQ(downloads.first().status, 1u);
+    EXPECT(store->completed_downloads().is_empty());
 
     store->save_download(example_download(6));
     EXPECT_EQ(store->resumable_downloads().size(), 2u);

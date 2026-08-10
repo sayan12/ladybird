@@ -37,6 +37,10 @@ struct WEBVIEW_API DownloadRecord {
     UnixDateTime created_time;
 
     bool can_restart_from_zero { false };
+
+    // Raw FileDownloader::DownloadStatus value. DownloadStore intentionally does not depend on
+    // FileDownloader.h, so callers are responsible for casting to/from the real enum.
+    u8 status { 0 };
 };
 
 class WEBVIEW_API DownloadStore {
@@ -55,6 +59,7 @@ public:
     void save_download(DownloadRecord const&, UnixDateTime updated_at = UnixDateTime::now());
     void remove_download(u64 id);
     Vector<DownloadRecord> resumable_downloads();
+    Vector<DownloadRecord> completed_downloads();
 
     u64 maximum_download_id();
 
@@ -62,7 +67,8 @@ private:
     struct Statements {
         Database::StatementID upsert_download { 0 };
         Database::StatementID delete_download { 0 };
-        Database::StatementID list_downloads { 0 };
+        Database::StatementID list_resumable_downloads { 0 };
+        Database::StatementID list_completed_downloads { 0 };
         Database::StatementID maximum_download_id { 0 };
     };
 

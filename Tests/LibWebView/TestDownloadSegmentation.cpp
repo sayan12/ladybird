@@ -219,6 +219,7 @@ TEST_CASE(estimated_time_remaining)
         .bytes_per_second = {},
         .is_waiting_to_retry = false,
         .created_time = {},
+        .last_activity_time = {},
     };
 
     EXPECT(!download.estimated_time_remaining().has_value());

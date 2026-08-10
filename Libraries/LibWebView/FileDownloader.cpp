@@ -853,6 +853,7 @@ void FileDownloader::restart_download_from_zero(u64 download_id, String reason_i
 u64 FileDownloader::start_download(IsPrivate is_private, URL::URL const& url, LexicalPath destination, Optional<u64> total_size)
 {
     auto download_id = m_next_download_id++;
+    auto now = UnixDateTime::now();
 
     m_downloads.append(Download {
         .id = download_id,
@@ -862,7 +863,8 @@ u64 FileDownloader::start_download(IsPrivate is_private, URL::URL const& url, Le
         .total_size = total_size,
         .error = {},
         .bytes_per_second = {},
-        .created_time = UnixDateTime::now(),
+        .created_time = now,
+        .last_activity_time = now,
     });
     auto& download = m_downloads.last();
     notify_download_added(download);
@@ -1063,12 +1065,12 @@ void FileDownloader::finish_download(u64 id)
         return;
     }
 
-    forget_persisted_download(id);
-
     download->status = DownloadStatus::Completed;
     download->bytes_per_second = {};
     if (!download->total_size.has_value())
         download->total_size = download->downloaded_size;
+
+    persist_completed_download(id);
     notify_download_updated(*download);
 
     Core::deferred_invoke([this, id] {
@@ -1258,6 +1260,39 @@ void FileDownloader::persist_download_snapshot(u64 id, PersistUrgency urgency)
     m_download_store->save_download(record);
 }
 
+void FileDownloader::persist_completed_download(u64 id)
+{
+    if (!m_download_store)
+        return;
+
+    auto* download = mutable_download_or_null(id);
+    auto* active = active_download(id);
+    if (!download || !active)
+        return;
+
+    if (download->is_private == IsPrivate::Yes) {
+        forget_persisted_download(id);
+        return;
+    }
+
+    DownloadRecord record {
+        .id = download->id,
+        .url = active->effective_url.serialize(),
+        .display_url = download->url.serialize(),
+        .destination = String::from_byte_string(download->destination.string()).release_value_but_fixme_should_propagate_errors(),
+        .temporary_destination = String {},
+        .total_size = download->total_size.value_or(download->downloaded_size),
+        .etag = {},
+        .last_modified = {},
+        .segments = {},
+        .created_time = active->created_time,
+        .can_restart_from_zero = false,
+        .status = static_cast<u8>(DownloadStatus::Completed),
+    };
+
+    m_download_store->save_download(record);
+}
+
 void FileDownloader::forget_persisted_download(u64 id)
 {
     if (m_download_store)
@@ -1287,6 +1322,40 @@ void FileDownloader::restore_persisted_downloads()
     }
 
     remove_orphaned_temporary_files(directories, temporary_paths_in_use);
+
+    for (auto& record : m_download_store->completed_downloads()) {
+        if (!restore_completed_download(record))
+            m_download_store->remove_download(record.id);
+    }
+}
+
+bool FileDownloader::restore_completed_download(DownloadRecord& record)
+{
+    auto url = URL::Parser::basic_parse(record.display_url);
+    if (!url.has_value())
+        return false;
+
+    LexicalPath destination { record.destination.to_byte_string() };
+    if (!FileSystem::exists(destination.string()))
+        return false;
+
+    m_downloads.append(Download {
+        .id = record.id,
+        .is_private = IsPrivate::No,
+        .url = url.release_value(),
+        .destination = move(destination),
+        .status = DownloadStatus::Completed,
+        .downloaded_size = record.total_size,
+        .total_size = record.total_size,
+        .error = {},
+        .can_resume = false,
+        .bytes_per_second = {},
+        .created_time = record.created_time,
+        .last_activity_time = record.created_time,
+    });
+
+    notify_download_added(m_downloads.last());
+    return true;
 }
 
 bool FileDownloader::restore_persisted_download(DownloadRecord& record)
@@ -1334,6 +1403,7 @@ bool FileDownloader::restore_persisted_download(DownloadRecord& record)
         .can_resume = true,
         .bytes_per_second = {},
         .created_time = record.created_time,
+        .last_activity_time = record.created_time,
     });
 
     auto active = make<ActiveDownload>(move(temporary_destination));
@@ -1490,20 +1560,18 @@ void FileDownloader::cancel_unresumable_downloads()
 
 void FileDownloader::cancel_private_downloads()
 {
-    for (size_t i = m_downloads.size(); i > 0; --i) {
-        auto const& download = m_downloads[i - 1];
-
+    Vector<u64> ids_to_cancel;
+    for (auto const& download : m_downloads) {
         if (!status_is_active(download.status))
             continue;
         if (download.is_private == IsPrivate::No)
             continue;
 
-        auto id = download.id;
-        cancel_download(id);
-
-        m_downloads.remove(i - 1);
-        notify_download_removed(id);
+        ids_to_cancel.append(download.id);
     }
+
+    for (auto id : ids_to_cancel)
+        cancel_download(id);
 }
 
 void FileDownloader::cancel_download(u64 id)
@@ -1512,13 +1580,14 @@ void FileDownloader::cancel_download(u64 id)
     if (!download || !status_is_active(download->status))
         return;
 
-    download->status = DownloadStatus::Canceled;
-    download->error = {};
     forget_persisted_download(id);
-
     discard_active_download(id);
 
-    notify_download_updated(*download);
+    // Cancelled downloads are not kept around like Completed/Failed ones - there is nothing useful
+    // to show or retry, so drop them from the list instead of lingering as "Canceled". This is
+    // commonly invoked from a UI callback owned by the download's own row (e.g. its Cancel button),
+    // so the actual removal is deferred to avoid destroying that callback while it is still running.
+    remove_download_entry(id);
 }
 
 void FileDownloader::fail_download(u64 id, String error)
@@ -1536,19 +1605,57 @@ void FileDownloader::fail_download(u64 id, String error)
     notify_download_updated(*download);
 }
 
-Vector<u64> FileDownloader::prune_inactive_downloads()
+void FileDownloader::retry_download(u64 id)
 {
-    return remove_inactive_downloads_created_since(UnixDateTime::earliest());
+    auto* download = mutable_download_or_null(id);
+    if (!download || download->status != DownloadStatus::Failed)
+        return;
+
+    auto is_private = download->is_private;
+    auto url = download->url;
+    auto destination = download->destination;
+
+    remove_download(id);
+    download_file(is_private, url, move(destination));
 }
 
-Vector<u64> FileDownloader::remove_inactive_downloads_created_since(UnixDateTime since)
+void FileDownloader::remove_download(u64 id)
+{
+    auto* download = mutable_download_or_null(id);
+    if (!download || status_is_active(download->status))
+        return;
+
+    forget_persisted_download(id);
+    m_active_downloads.remove(id);
+
+    // See the comment in cancel_download() - this may be running from inside a callback owned by
+    // the row being removed (e.g. a Retry/Remove button), so defer the actual removal.
+    remove_download_entry(id);
+}
+
+void FileDownloader::remove_download_entry(u64 id)
+{
+    Core::deferred_invoke([this, id] {
+        if (!m_downloads.remove_first_matching([&](auto const& candidate) { return candidate.id == id; }))
+            return;
+
+        notify_download_removed(id);
+    });
+}
+
+Vector<u64> FileDownloader::prune_completed_downloads()
+{
+    return remove_completed_downloads_created_since(UnixDateTime::earliest());
+}
+
+Vector<u64> FileDownloader::remove_completed_downloads_created_since(UnixDateTime since)
 {
     Vector<u64> removed_download_ids;
 
     for (size_t i = m_downloads.size(); i > 0; --i) {
         auto const index = i - 1;
         auto const id = m_downloads[index].id;
-        if (status_is_active(m_downloads[index].status))
+        if (m_downloads[index].status != DownloadStatus::Completed)
             continue;
         if (m_downloads[index].created_time < since)
             continue;
@@ -1571,8 +1678,10 @@ void FileDownloader::notify_download_added(Download const& download)
         observer.download_added(download);
 }
 
-void FileDownloader::notify_download_updated(Download const& download)
+void FileDownloader::notify_download_updated(Download& download)
 {
+    download.last_activity_time = UnixDateTime::now();
+
     for (auto& observer : m_observers)
         observer.download_updated(download);
 }

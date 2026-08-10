@@ -15,6 +15,12 @@ namespace WebView {
 
 static constexpr u32 DOWNLOAD_SCHEMA_BASELINE_VERSION = 1u;
 static constexpr u32 DOWNLOAD_SCHEMA_RESTARTABILITY_VERSION = 2u;
+static constexpr u32 DOWNLOAD_SCHEMA_STATUS_VERSION = 3u;
+
+// The `status` column stores the underlying value of FileDownloader::DownloadStatus. DownloadStore
+// does not include FileDownloader.h, so the mapping (InProgress = 0, Paused = 1, Completed = 2,
+// Canceled = 3, Failed = 4) is duplicated here in the queries below rather than shared. Only
+// InProgress/Paused (resumable) and Completed (history) rows are ever persisted.
 
 static String serialize_segments(Vector<DownloadSegmentRecord> const& segments)
 {
@@ -71,7 +77,7 @@ static Optional<Vector<DownloadSegmentRecord>> deserialize_segments(StringView s
 
 ErrorOr<Database::MigrationOutcome> DownloadStore::migrate_schema(Database::Database& database, Database::MigrationMode mode)
 {
-    Array<Database::Migration, 2> migrations { {
+    Array<Database::Migration, 3> migrations { {
         { .version = DOWNLOAD_SCHEMA_BASELINE_VERSION, .sql = R"#(
             CREATE TABLE IF NOT EXISTS Downloads (
                 id INTEGER PRIMARY KEY,
@@ -89,6 +95,9 @@ ErrorOr<Database::MigrationOutcome> DownloadStore::migrate_schema(Database::Data
         )#"sv },
         { .version = DOWNLOAD_SCHEMA_RESTARTABILITY_VERSION, .sql = R"#(
             ALTER TABLE Downloads ADD COLUMN can_restart_from_zero INTEGER NOT NULL DEFAULT 0;
+        )#"sv },
+        { .version = DOWNLOAD_SCHEMA_STATUS_VERSION, .sql = R"#(
+            ALTER TABLE Downloads ADD COLUMN status INTEGER NOT NULL DEFAULT 1;
         )#"sv },
     } };
 
@@ -111,10 +120,11 @@ ErrorOr<NonnullOwnPtr<DownloadStore>> DownloadStore::create(Database::Database& 
             last_modified,
             segments,
             can_restart_from_zero,
+            status,
             created_time,
             updated_time
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             url = excluded.url,
             display_url = excluded.display_url,
@@ -125,6 +135,7 @@ ErrorOr<NonnullOwnPtr<DownloadStore>> DownloadStore::create(Database::Database& 
             last_modified = excluded.last_modified,
             segments = excluded.segments,
             can_restart_from_zero = excluded.can_restart_from_zero,
+            status = excluded.status,
             updated_time = excluded.updated_time;
     )#"sv));
 
@@ -133,9 +144,17 @@ ErrorOr<NonnullOwnPtr<DownloadStore>> DownloadStore::create(Database::Database& 
         WHERE id = ?;
     )#"sv));
 
-    statements.list_downloads = TRY(database.prepare_statement(R"#(
-        SELECT id, url, display_url, destination, temporary_destination, total_size, etag, last_modified, segments, can_restart_from_zero, created_time
+    statements.list_resumable_downloads = TRY(database.prepare_statement(R"#(
+        SELECT id, url, display_url, destination, temporary_destination, total_size, etag, last_modified, segments, can_restart_from_zero, created_time, status
         FROM Downloads
+        WHERE status IN (0, 1)
+        ORDER BY id ASC;
+    )#"sv));
+
+    statements.list_completed_downloads = TRY(database.prepare_statement(R"#(
+        SELECT id, url, display_url, destination, temporary_destination, total_size, etag, last_modified, segments, can_restart_from_zero, created_time, status
+        FROM Downloads
+        WHERE status = 2
         ORDER BY id ASC;
     )#"sv));
 
@@ -178,6 +197,7 @@ void DownloadStore::save_download(DownloadRecord const& download, UnixDateTime u
         download.last_modified.value_or(String {}),
         serialize_segments(download.segments),
         static_cast<u64>(download.can_restart_from_zero ? 1 : 0),
+        static_cast<u64>(download.status),
         download.created_time,
         updated_at);
 }
@@ -198,7 +218,7 @@ Vector<DownloadRecord> DownloadStore::resumable_downloads()
     Vector<DownloadRecord> downloads;
 
     m_database->execute_statement(
-        m_statements.list_downloads,
+        m_statements.list_resumable_downloads,
         [&](auto statement_id) {
             auto segments = deserialize_segments(m_database->result_column<String>(statement_id, 8));
             if (!segments.has_value())
@@ -219,6 +239,39 @@ Vector<DownloadRecord> DownloadStore::resumable_downloads()
                 .segments = segments.release_value(),
                 .created_time = m_database->result_column<UnixDateTime>(statement_id, 10),
                 .can_restart_from_zero = m_database->result_column<u64>(statement_id, 9) != 0,
+                .status = static_cast<u8>(m_database->result_column<u64>(statement_id, 11)),
+            });
+        });
+
+    return downloads;
+}
+
+Vector<DownloadRecord> DownloadStore::completed_downloads()
+{
+    if (!m_database)
+        return {};
+
+    Vector<DownloadRecord> downloads;
+
+    m_database->execute_statement(
+        m_statements.list_completed_downloads,
+        [&](auto statement_id) {
+            auto etag = m_database->result_column<String>(statement_id, 6);
+            auto last_modified = m_database->result_column<String>(statement_id, 7);
+
+            downloads.append(DownloadRecord {
+                .id = m_database->result_column<u64>(statement_id, 0),
+                .url = m_database->result_column<String>(statement_id, 1),
+                .display_url = m_database->result_column<String>(statement_id, 2),
+                .destination = m_database->result_column<String>(statement_id, 3),
+                .temporary_destination = m_database->result_column<String>(statement_id, 4),
+                .total_size = m_database->result_column<u64>(statement_id, 5),
+                .etag = etag.is_empty() ? Optional<String> {} : Optional<String> { move(etag) },
+                .last_modified = last_modified.is_empty() ? Optional<String> {} : Optional<String> { move(last_modified) },
+                .segments = {},
+                .created_time = m_database->result_column<UnixDateTime>(statement_id, 10),
+                .can_restart_from_zero = m_database->result_column<u64>(statement_id, 9) != 0,
+                .status = static_cast<u8>(m_database->result_column<u64>(statement_id, 11)),
             });
         });
 

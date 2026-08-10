@@ -48,6 +48,8 @@ static JsonObject serialize_download(FileDownloader::Download const& download)
     serialized.set("connectionCount"sv, download.connection_count);
     serialized.set("isWaitingToRetry"sv, download.is_waiting_to_retry);
     serialized.set("bytesPerSecond"sv, download.bytes_per_second.has_value() ? JsonValue { *download.bytes_per_second } : JsonValue {});
+    serialized.set("createdTime"sv, download.created_time.milliseconds_since_epoch());
+    serialized.set("lastTryTime"sv, download.last_activity_time.milliseconds_since_epoch());
 
     auto time_remaining = download.estimated_time_remaining();
     serialized.set("secondsRemaining"sv, time_remaining.has_value() ? JsonValue { time_remaining->to_seconds() } : JsonValue {});
@@ -73,6 +75,12 @@ void DownloadsUI::register_interfaces()
     });
     register_interface("pruneInactiveDownloads"sv, [this](auto const&) {
         prune_inactive_downloads();
+    });
+    register_interface("retryDownload"sv, [this](auto const& data) {
+        retry_download(data);
+    });
+    register_interface("removeDownload"sv, [this](auto const& data) {
+        remove_download(data);
     });
     register_interface("cancelDownload"sv, [this](auto const& data) {
         cancel_download(data);
@@ -120,7 +128,7 @@ void DownloadsUI::load_downloads()
 
 void DownloadsUI::prune_inactive_downloads()
 {
-    (void)Application::the().file_downloader().prune_inactive_downloads();
+    (void)Application::the().file_downloader().prune_completed_downloads();
 }
 
 static Optional<FileDownloader::Download const&> download_from_message(JsonValue const& data)
@@ -169,6 +177,30 @@ void DownloadsUI::resume_download(JsonValue const& data)
         return;
 
     Application::the().file_downloader().resume_download(download->id);
+}
+
+void DownloadsUI::retry_download(JsonValue const& data)
+{
+    auto download = download_from_message(data);
+    if (!download.has_value())
+        return;
+
+    if (download->status != FileDownloader::DownloadStatus::Failed)
+        return;
+
+    Application::the().file_downloader().retry_download(download->id);
+}
+
+void DownloadsUI::remove_download(JsonValue const& data)
+{
+    auto download = download_from_message(data);
+    if (!download.has_value())
+        return;
+
+    if (FileDownloader::status_is_active(download->status))
+        return;
+
+    Application::the().file_downloader().remove_download(download->id);
 }
 
 void DownloadsUI::open_download(JsonValue const& data)

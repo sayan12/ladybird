@@ -73,6 +73,7 @@ public:
         Optional<u64> bytes_per_second;
         bool is_waiting_to_retry { false };
         UnixDateTime created_time;
+        UnixDateTime last_activity_time;
 
         Optional<AK::Duration> estimated_time_remaining() const;
     };
@@ -95,8 +96,10 @@ public:
     void resume_download(u64 id);
     void pause_active_downloads();
     void fail_download(u64 id, String);
-    Vector<u64> prune_inactive_downloads();
-    Vector<u64> remove_inactive_downloads_created_since(UnixDateTime);
+    void retry_download(u64 id);
+    void remove_download(u64 id);
+    Vector<u64> prune_completed_downloads();
+    Vector<u64> remove_completed_downloads_created_since(UnixDateTime);
 
     ReadonlySpan<Download> downloads() const { return m_downloads.span(); }
     Optional<Download const&> download(u64 id) const;
@@ -137,9 +140,11 @@ private:
         Immediate,
     };
     void persist_download_snapshot(u64 id, PersistUrgency);
+    void persist_completed_download(u64 id);
     void forget_persisted_download(u64 id);
     void restore_persisted_downloads();
     bool restore_persisted_download(DownloadRecord&);
+    bool restore_completed_download(DownloadRecord&);
     static void remove_orphaned_temporary_files(HashTable<ByteString> const& directories, HashTable<ByteString> const& temporary_paths_in_use);
 
     void maybe_split_download(u64 id);
@@ -151,8 +156,10 @@ private:
     void maybe_finish_download(u64 id);
     void discard_active_download(u64 id);
 
+    void remove_download_entry(u64 id);
+
     void notify_download_added(Download const&);
-    void notify_download_updated(Download const&);
+    void notify_download_updated(Download&);
     void notify_download_removed(u64 id);
 
     Vector<Download> m_downloads;

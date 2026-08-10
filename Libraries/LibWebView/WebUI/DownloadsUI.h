@@ -28,6 +28,8 @@ private:
     void cancel_download(JsonValue const&);
     void pause_download(JsonValue const&);
     void resume_download(JsonValue const&);
+    void retry_download(JsonValue const&);
+    void remove_download(JsonValue const&);
     void open_download(JsonValue const&);
     void show_download_in_folder(JsonValue const&);
 };

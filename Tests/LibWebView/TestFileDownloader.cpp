@@ -69,15 +69,21 @@ enum class StallBehavior {
     TrickleFirstRangeRequest,
 };
 
+enum class InitialFailureBehavior {
+    None,
+    FailFirstRequest,
+};
+
 class TestHttpServer {
 public:
-    TestHttpServer(ByteBuffer body, RangeSupport range_support, RangeRequestBehavior range_request_behavior = RangeRequestBehavior::Serve, Validator validator = Validator::Yes, StallBehavior stall_behavior = StallBehavior::None)
+    TestHttpServer(ByteBuffer body, RangeSupport range_support, RangeRequestBehavior range_request_behavior = RangeRequestBehavior::Serve, Validator validator = Validator::Yes, StallBehavior stall_behavior = StallBehavior::None, InitialFailureBehavior initial_failure_behavior = InitialFailureBehavior::None)
         : m_body(move(body))
         , m_range_support(range_support)
         , m_range_request_behavior(range_request_behavior)
         , m_validator(validator)
         , m_stall_behavior(stall_behavior)
         , m_stall_pending(stall_behavior != StallBehavior::None)
+        , m_initial_failure_pending(initial_failure_behavior != InitialFailureBehavior::None)
     {
         m_socket = MUST(Core::System::socket(AF_INET, SOCK_STREAM, 0));
 
@@ -164,6 +170,12 @@ private:
     // Returns whether the caller still owns the client socket and should close it.
     bool handle_connection(int client)
     {
+        if (m_initial_failure_pending.exchange(false)) {
+            static constexpr auto failure_response = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"sv;
+            (void)write_all(client, failure_response.bytes());
+            return true;
+        }
+
         StringBuilder request;
         Array<u8, 4096> buffer;
 
@@ -303,6 +315,7 @@ private:
     StallBehavior m_stall_behavior { StallBehavior::None };
     Atomic<bool> m_shutting_down { false };
     Atomic<bool> m_stall_pending { false };
+    Atomic<bool> m_initial_failure_pending { false };
 
     Sync::Mutex m_mutex;
     Vector<ByteString> m_range_requests;
@@ -579,6 +592,133 @@ ErrorOr<int> ladybird_main(Main::Arguments arguments)
         auto range_requests = server.range_requests();
         outln("changed validator: {} requests, {} of them ranged", server.request_count(), range_requests.size());
         VERIFY(range_requests.size() >= 1);
+    }
+
+    {
+        TestHttpServer server { body, RangeSupport::Yes, RangeRequestBehavior::Serve, Validator::Yes, StallBehavior::StallFirstRangeRequest };
+        auto& downloader = WebView::Application::the().file_downloader();
+
+        auto destination = LexicalPath::join(test_directory, "canceled.bin"sv);
+        auto url = URL::Parser::basic_parse(ByteString::formatted("http://127.0.0.1:{}/file", server.port()));
+        VERIFY(url.has_value());
+
+        auto download_id = downloader.download_file(WebView::IsPrivate::No, *url, destination);
+
+        DownloadWatcher watcher;
+        watcher.watch(download_id);
+
+        auto cancelled = false;
+        watcher.on_update = [&](auto const& download) {
+            if (!cancelled && download.downloaded_size > 0) {
+                cancelled = true;
+                downloader.cancel_download(download_id);
+            }
+        };
+
+        Core::EventLoop::current().spin_until([&] { return cancelled; });
+
+        // The actual removal is deferred (to avoid destroying a UI callback owned by the download's
+        // own row while it is still running), so give the event loop a moment to process it.
+        Core::EventLoop::current().spin_until([&] { return !downloader.download(download_id).has_value(); });
+
+        // Cancelled downloads are dropped entirely, unlike Completed/Failed ones.
+        VERIFY(!downloader.download(download_id).has_value());
+
+        outln("cancel removes the download shortly after being requested");
+    }
+
+    {
+        TestHttpServer server { body, RangeSupport::No, RangeRequestBehavior::Serve, Validator::Yes, StallBehavior::None, InitialFailureBehavior::FailFirstRequest };
+        auto& downloader = WebView::Application::the().file_downloader();
+
+        auto destination = LexicalPath::join(test_directory, "retry.bin"sv);
+        auto url = URL::Parser::basic_parse(ByteString::formatted("http://127.0.0.1:{}/file", server.port()));
+        VERIFY(url.has_value());
+
+        auto failed_id = downloader.download_file(WebView::IsPrivate::No, *url, destination);
+
+        DownloadWatcher watcher;
+        watcher.watch(failed_id);
+        Core::EventLoop::current().spin_until([&] { return watcher.is_finished(); });
+        VERIFY(watcher.status() == WebView::FileDownloader::DownloadStatus::Failed);
+
+        // Failed downloads stay visible so the user can retry or dismiss them.
+        VERIFY(downloader.download(failed_id).has_value());
+
+        downloader.retry_download(failed_id);
+
+        // retry_download() starts the new download synchronously, but removal of the old entry is
+        // deferred (see the comment in cancel_download()).
+        auto retry_id = downloader.downloads().last().id;
+        VERIFY(retry_id != failed_id);
+
+        DownloadWatcher retry_watcher;
+        retry_watcher.watch(retry_id);
+        Core::EventLoop::current().spin_until([&] { return retry_watcher.is_finished(); });
+        VERIFY(retry_watcher.status() == WebView::FileDownloader::DownloadStatus::Completed);
+        expect_file_matches(destination.string(), body.bytes());
+
+        // By now the deferred removal has long since run.
+        VERIFY(!downloader.download(failed_id).has_value());
+
+        outln("retry after failure starts a fresh download and can succeed");
+    }
+
+    {
+        TestHttpServer server { body, RangeSupport::No, RangeRequestBehavior::Serve, Validator::Yes, StallBehavior::None, InitialFailureBehavior::FailFirstRequest };
+        auto& downloader = WebView::Application::the().file_downloader();
+
+        auto destination = LexicalPath::join(test_directory, "removed.bin"sv);
+        auto url = URL::Parser::basic_parse(ByteString::formatted("http://127.0.0.1:{}/file", server.port()));
+        VERIFY(url.has_value());
+
+        auto failed_id = downloader.download_file(WebView::IsPrivate::No, *url, destination);
+
+        DownloadWatcher watcher;
+        watcher.watch(failed_id);
+        Core::EventLoop::current().spin_until([&] { return watcher.is_finished(); });
+        VERIFY(watcher.status() == WebView::FileDownloader::DownloadStatus::Failed);
+
+        downloader.remove_download(failed_id);
+        Core::EventLoop::current().spin_until([&] { return !downloader.download(failed_id).has_value(); });
+        VERIFY(!downloader.download(failed_id).has_value());
+
+        outln("remove_download dismisses a failed download");
+    }
+
+    {
+        auto& downloader = WebView::Application::the().file_downloader();
+
+        auto completed_before = 0uz;
+        for (auto const& download : downloader.downloads()) {
+            if (download.status == WebView::FileDownloader::DownloadStatus::Completed)
+                ++completed_before;
+        }
+        VERIFY(completed_before > 0);
+
+        // A Failed download from an earlier scenario ran against a server that has since been torn
+        // down; pruning must not sweep it up along with the Completed history.
+        TestHttpServer server { body, RangeSupport::No, RangeRequestBehavior::Serve, Validator::Yes, StallBehavior::None, InitialFailureBehavior::FailFirstRequest };
+        auto destination = LexicalPath::join(test_directory, "prune-scope.bin"sv);
+        auto url = URL::Parser::basic_parse(ByteString::formatted("http://127.0.0.1:{}/file", server.port()));
+        VERIFY(url.has_value());
+
+        auto failed_id = downloader.download_file(WebView::IsPrivate::No, *url, destination);
+        DownloadWatcher watcher;
+        watcher.watch(failed_id);
+        Core::EventLoop::current().spin_until([&] { return watcher.is_finished(); });
+        VERIFY(watcher.status() == WebView::FileDownloader::DownloadStatus::Failed);
+
+        (void)downloader.prune_completed_downloads();
+
+        auto remaining = downloader.downloads();
+        for (auto const& download : remaining)
+            VERIFY(download.status != WebView::FileDownloader::DownloadStatus::Completed);
+
+        // The Failed download must survive pruning - only Completed history is cleared.
+        VERIFY(downloader.download(failed_id).has_value());
+
+        outln("prune_completed_downloads only removes Completed downloads");
     }
 
     outln("PASS");
