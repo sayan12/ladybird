@@ -28,10 +28,80 @@
                 }
             }
 
-            .downloads-content {
+            body {
+                max-width: 1280px;
+            }
+
+            .downloads-manager {
+                display: flex;
+                align-items: flex-start;
+                gap: 20px;
+            }
+
+            .downloads-sidebar {
                 display: flex;
                 flex-direction: column;
-                gap: 16px;
+                gap: 20px;
+
+                flex: 0 0 180px;
+                min-width: 0;
+            }
+
+            .sidebar-section {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+            }
+
+            .sidebar-heading {
+                margin: 0 8px 6px 8px;
+                color: var(--secondary-text-color);
+                font-size: 12px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+            }
+
+            .sidebar-item {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+
+                width: 100%;
+                padding: 7px 8px;
+
+                color: inherit;
+                background: none;
+                border: none;
+                border-radius: 6px;
+
+                font-size: 13px;
+                text-align: left;
+                cursor: pointer;
+            }
+
+            .sidebar-item:hover {
+                background-color: var(--item-hover-color);
+            }
+
+            .sidebar-item.active {
+                background-color: var(--item-selected-color);
+                font-weight: 600;
+            }
+
+            .sidebar-count {
+                color: var(--secondary-text-color);
+                font-size: 12px;
+            }
+
+            .sidebar-item.active .sidebar-count {
+                color: inherit;
+            }
+
+            .downloads-main {
+                flex: 1 1 auto;
+                min-width: 0;
             }
 
             .downloads-status,
@@ -45,6 +115,7 @@
                 align-items: center;
                 justify-content: space-between;
                 gap: 12px;
+                margin-bottom: 16px;
             }
 
             .downloads-empty {
@@ -53,78 +124,149 @@
                 font-size: 14px;
             }
 
-            .downloads-list {
+            .downloads-table-wrapper {
+                overflow-x: auto;
+            }
+
+            .downloads-table {
+                width: 100%;
+                border-collapse: collapse;
+                table-layout: fixed;
+            }
+
+            .downloads-table th {
+                color: var(--secondary-text-color);
+                font-size: 12px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+                text-align: left;
+
+                padding: 0 10px 8px 10px;
+                border-bottom: 1px solid var(--separator-color);
+
+                cursor: pointer;
+                user-select: none;
+                white-space: nowrap;
+            }
+
+            .downloads-table th:hover {
+                color: inherit;
+            }
+
+            .downloads-table th.sorted::after {
+                content: "▾";
+                margin-left: 4px;
+                font-size: 10px;
+            }
+
+            .downloads-table th.sorted.descending::after {
+                content: "▴";
+            }
+
+            .downloads-table th.col-name {
+                width: 26%;
+            }
+
+            .downloads-table th.col-size {
+                width: 11%;
+            }
+
+            .downloads-table th.col-last-try,
+            .downloads-table th.col-date-added {
+                width: 13%;
+            }
+
+            .downloads-table th.col-location {
+                width: 15%;
+            }
+
+            .downloads-table th.col-actions {
+                width: 150px;
+            }
+
+            .downloads-table td {
+                padding: 12px 10px;
+                border-bottom: 1px solid var(--separator-color);
+                vertical-align: top;
+
+                font-size: 13px;
+            }
+
+            .downloads-table tr:last-child td {
+                border-bottom: none;
+            }
+
+            .cell-text {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .download-name {
+                font-weight: 600;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .download-status-line {
                 display: flex;
-                flex-direction: column;
-                gap: 12px;
-            }
+                align-items: center;
+                gap: 6px;
+                margin-top: 4px;
 
-            .download-entry {
-                display: grid;
-                grid-template-columns: minmax(0, 1fr) auto;
-                gap: 14px;
-
-                border-top: 1px solid var(--separator-color);
-                padding-top: 16px;
-            }
-
-            .download-entry:first-child {
-                border-top: none;
-                padding-top: 0;
-            }
-
-            .download-main {
-                min-width: 0;
-            }
-
-            .download-title {
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
 
-                font-size: 14px;
-                font-weight: 600;
+                font-size: 12px;
             }
 
-            .download-url,
-            .download-destination,
+            .download-status {
+                font-weight: 600;
+                white-space: nowrap;
+            }
+
+            .download-status.completed {
+                color: var(--download-status-completed-color);
+            }
+
+            .download-status.failed {
+                color: var(--download-status-failed-color);
+            }
+
+            .download-status.paused {
+                color: var(--download-status-paused-color);
+            }
+
             .download-detail {
                 color: var(--secondary-text-color);
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
-
-                font-size: 13px;
-                margin-top: 4px;
-            }
-
-            .download-state {
-                display: flex;
-                align-items: center;
-                gap: 8px;
-
-                margin-top: 10px;
             }
 
             .download-progress {
                 display: flex;
                 flex-direction: column;
                 gap: 4px;
+                margin-top: 8px;
             }
 
-            .download-state progress {
+            .download-progress progress {
                 appearance: none;
-                width: 150px;
-                height: 8px;
+                width: 100%;
+                height: 6px;
                 display: block;
             }
 
-            .download-state progress::-webkit-progress-bar {
+            .download-progress progress::-webkit-progress-bar {
                 background-color: var(--download-progress-track-color);
                 border-radius: 999px;
             }
 
-            .download-state progress::-webkit-progress-value {
+            .download-progress progress::-webkit-progress-value {
                 background-color: var(--download-progress-color);
                 border-radius: 999px;
             }
@@ -133,7 +275,7 @@
                 display: flex;
                 gap: 1px;
 
-                width: 150px;
+                width: 100%;
                 height: 4px;
 
                 background-color: var(--download-progress-track-color);
@@ -155,50 +297,37 @@
                 background-color: var(--download-segment-done-color);
             }
 
-            .download-status {
-                font-size: 13px;
-                font-weight: 600;
-                white-space: nowrap;
-            }
-
-            .download-status.completed {
-                color: var(--download-status-completed-color);
-            }
-
-            .download-status.failed {
-                color: var(--download-status-failed-color);
-            }
-
-            .download-status.canceled {
-                color: var(--secondary-text-color);
-            }
-
-            .download-status.paused {
-                color: var(--download-status-paused-color);
-            }
-
             .download-actions {
                 display: flex;
-                align-items: flex-start;
-                gap: 8px;
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+
+                min-width: 130px;
             }
 
             .download-actions button {
                 white-space: nowrap;
+                padding: 6px 10px;
+                font-size: 12px;
+                text-align: center;
             }
 
-            @media (max-width: 640px) {
-                .downloads-header {
-                    align-items: flex-start;
+            @media (max-width: 860px) {
+                .downloads-manager {
                     flex-direction: column;
                 }
 
-                .download-entry {
-                    grid-template-columns: 1fr;
+                .downloads-sidebar {
+                    flex-direction: row;
+                    flex-wrap: wrap;
+                    flex-basis: auto;
+                    width: 100%;
                 }
 
-                .download-actions {
-                    flex-wrap: wrap;
+                .downloads-header {
+                    align-items: flex-start;
+                    flex-direction: column;
                 }
             }
         </style>
@@ -213,15 +342,70 @@
         </header>
 
         <div class="card">
-            <div class="card-body downloads-content">
-                <div class="downloads-header">
-                    <div id="downloads-status" class="downloads-status">Loading downloads...</div>
-                    <button id="prune-inactive-downloads" class="secondary-button" disabled>
-                        Clear finished downloads
-                    </button>
-                </div>
-                <div id="downloads-empty" class="downloads-empty hidden"></div>
-                <div id="downloads-list" class="downloads-list"></div>
+            <div class="card-body downloads-content downloads-manager">
+                <aside class="downloads-sidebar">
+                    <div class="sidebar-section" id="status-filters" data-filter-group="status">
+                        <h2 class="sidebar-heading">Status</h2>
+                        <button class="sidebar-item active" data-filter-value="all">
+                            <span>All</span><span class="sidebar-count"></span>
+                        </button>
+                        <button class="sidebar-item" data-filter-value="unfinished">
+                            <span>Unfinished</span><span class="sidebar-count"></span>
+                        </button>
+                        <button class="sidebar-item" data-filter-value="finished">
+                            <span>Finished</span><span class="sidebar-count"></span>
+                        </button>
+                    </div>
+                    <div class="sidebar-section" id="category-filters" data-filter-group="category">
+                        <h2 class="sidebar-heading">Categories</h2>
+                        <button class="sidebar-item active" data-filter-value="all">
+                            <span>All</span><span class="sidebar-count"></span>
+                        </button>
+                        <button class="sidebar-item" data-filter-value="compressed">
+                            <span>Compressed</span><span class="sidebar-count"></span>
+                        </button>
+                        <button class="sidebar-item" data-filter-value="documents">
+                            <span>Documents</span><span class="sidebar-count"></span>
+                        </button>
+                        <button class="sidebar-item" data-filter-value="music">
+                            <span>Music</span><span class="sidebar-count"></span>
+                        </button>
+                        <button class="sidebar-item" data-filter-value="programs">
+                            <span>Programs</span><span class="sidebar-count"></span>
+                        </button>
+                        <button class="sidebar-item" data-filter-value="video">
+                            <span>Video</span><span class="sidebar-count"></span>
+                        </button>
+                        <button class="sidebar-item" data-filter-value="other">
+                            <span>Other</span><span class="sidebar-count"></span>
+                        </button>
+                    </div>
+                </aside>
+
+                <section class="downloads-main">
+                    <div class="downloads-header">
+                        <div id="downloads-status" class="downloads-status">Loading downloads...</div>
+                        <button id="prune-inactive-downloads" class="secondary-button" disabled>
+                            Clear completed downloads
+                        </button>
+                    </div>
+                    <div id="downloads-empty" class="downloads-empty hidden"></div>
+                    <div class="downloads-table-wrapper">
+                        <table class="downloads-table" id="downloads-table">
+                            <thead>
+                                <tr>
+                                    <th class="col-name" data-sort="name">File Name</th>
+                                    <th class="col-size" data-sort="size">Size</th>
+                                    <th class="col-last-try" data-sort="lastTry">Last Try Date</th>
+                                    <th class="col-date-added" data-sort="dateAdded">Date Added</th>
+                                    <th class="col-location" data-sort="location">File Location</th>
+                                    <th class="col-actions"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="downloads-list"></tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
         </div>
 
@@ -229,10 +413,15 @@
             const downloadsStatus = document.querySelector("#downloads-status");
             const downloadsEmpty = document.querySelector("#downloads-empty");
             const downloadsList = document.querySelector("#downloads-list");
+            const downloadsTable = document.querySelector("#downloads-table");
             const pruneInactiveDownloadsButton = document.querySelector("#prune-inactive-downloads");
 
             const sizeFormatter = new Intl.NumberFormat([], {
                 maximumFractionDigits: 1,
+            });
+            const dateFormatter = new Intl.DateTimeFormat([], {
+                dateStyle: "short",
+                timeStyle: "short",
             });
             const sizeUnits = [
                 { divisor: 1, suffix: "B" },
@@ -242,8 +431,61 @@
                 { divisor: 1024 ** 4, suffix: "TiB" },
             ];
 
+            // Categorization is intentionally simple (extension-based) and entirely client-side.
+            const CATEGORY_EXTENSIONS = {
+                compressed: ["zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "tbz2", "xz", "txz", "zst", "cab", "iso"],
+                documents: [
+                    "pdf",
+                    "doc",
+                    "docx",
+                    "odt",
+                    "txt",
+                    "rtf",
+                    "xls",
+                    "xlsx",
+                    "ods",
+                    "ppt",
+                    "pptx",
+                    "odp",
+                    "csv",
+                    "epub",
+                    "md",
+                ],
+                music: ["mp3", "wav", "flac", "aac", "ogg", "oga", "m4a", "wma", "opus"],
+                programs: ["exe", "msi", "dmg", "pkg", "deb", "rpm", "appimage", "apk", "sh", "bat", "run", "jar"],
+                video: ["mp4", "mkv", "avi", "mov", "webm", "flv", "wmv", "m4v", "mpg", "mpeg", "3gp"],
+            };
+
+            function categoryForFileName(fileName) {
+                const dot = fileName.lastIndexOf(".");
+                if (dot <= 0 || dot === fileName.length - 1) return "other";
+
+                const extension = fileName.slice(dot + 1).toLowerCase();
+                for (const [category, extensions] of Object.entries(CATEGORY_EXTENSIONS)) {
+                    if (extensions.includes(extension)) return category;
+                }
+                return "other";
+            }
+
+            function locationForDestination(destination) {
+                const separator = destination.lastIndexOf("/") > -1 ? "/" : "\\";
+                const index = destination.lastIndexOf(separator);
+                return index > -1 ? destination.slice(0, index) : destination;
+            }
+
+            function isUnfinished(download) {
+                return (
+                    download.status === "in-progress" || download.status === "paused" || download.status === "failed"
+                );
+            }
+
             let downloads = [];
             const downloadRows = new Map();
+
+            let statusFilter = "all";
+            let categoryFilter = "all";
+            let sortKey = "dateAdded";
+            let sortDirection = "descending";
 
             function createElement(tagName, properties = {}, children = []) {
                 const element = document.createElement(tagName);
@@ -263,9 +505,13 @@
                 return sizeUnits[0];
             }
 
+            function sizeLabel(size) {
+                const unit = unitForDownloadSize(size);
+                return `${sizeFormatter.format(size / unit.divisor)} ${unit.suffix}`;
+            }
+
             function rateLabel(bytesPerSecond) {
-                const unit = unitForDownloadSize(bytesPerSecond);
-                return `${sizeFormatter.format(bytesPerSecond / unit.divisor)} ${unit.suffix}/s`;
+                return `${sizeLabel(bytesPerSecond)}/s`;
             }
 
             function timeRemainingLabel(seconds) {
@@ -279,38 +525,45 @@
                 return `${hours} hr ${minutes} min left`;
             }
 
+            function dateLabel(milliseconds) {
+                if (!milliseconds && milliseconds !== 0) return "";
+                return dateFormatter.format(new Date(milliseconds));
+            }
+
             function statusLabel(download) {
                 if (download.status === "completed") return "Completed";
-                if (download.status === "canceled") return "Canceled";
                 if (download.status === "failed") return "Failed";
                 if (download.status === "paused") return "Paused";
                 return "Downloading";
             }
 
             function detailLabel(download) {
-                if (download.status === "canceled") return "Partial file removed.";
                 if (download.status === "failed") return download.error || "The download failed.";
                 if (download.status === "paused" && download.error) return download.error;
                 if (download.status === "in-progress" && download.isWaitingToRetry)
                     return "The server asked us to slow down - waiting to retry.";
-                if (download.status !== "completed" && download.totalSize > 0) {
-                    const unit = unitForDownloadSize(download.totalSize);
-                    const parts = [
-                        `${sizeFormatter.format(download.downloadedSize / unit.divisor)}/${sizeFormatter.format(download.totalSize / unit.divisor)} ${unit.suffix}`,
-                    ];
-
+                if (download.status === "in-progress" || download.status === "paused") {
+                    const parts = [];
                     if (download.status === "in-progress") {
                         if (download.bytesPerSecond > 0) parts.push(rateLabel(download.bytesPerSecond));
                         if (download.secondsRemaining !== null && download.secondsRemaining !== undefined)
                             parts.push(timeRemainingLabel(download.secondsRemaining));
                         if (download.connectionCount > 1) parts.push(`${download.connectionCount} connections`);
                     }
-
                     return parts.join(" - ");
                 }
+                return "";
+            }
 
-                const unit = unitForDownloadSize(download.downloadedSize);
-                return `${sizeFormatter.format(download.downloadedSize / unit.divisor)} ${unit.suffix}`;
+            function sizeCellLabel(download) {
+                if (download.totalSize) {
+                    if (download.status === "in-progress" || download.status === "paused") {
+                        return `${sizeLabel(download.downloadedSize)} / ${sizeLabel(download.totalSize)}`;
+                    }
+                    return sizeLabel(download.totalSize);
+                }
+                if (download.downloadedSize) return sizeLabel(download.downloadedSize);
+                return "-";
             }
 
             function createActionButton(className, textContent, message, downloadId) {
@@ -321,78 +574,38 @@
                 });
             }
 
-            function updateActions(actions, download) {
-                const canResume = `${download.canResume === true}`;
-                if (
-                    actions.dataset.downloadId === `${download.id}` &&
-                    actions.dataset.status === download.status &&
-                    actions.dataset.canResume === canResume
-                )
-                    return;
-
-                actions.dataset.downloadId = download.id;
-                actions.dataset.status = download.status;
-                actions.dataset.canResume = canResume;
-
+            function actionsForDownload(download) {
                 if (download.status === "in-progress") {
                     const buttons = [];
                     if (download.canResume)
                         buttons.push(createActionButton("secondary-button", "Pause", "pauseDownload", download.id));
                     buttons.push(createActionButton("secondary-button", "Cancel", "cancelDownload", download.id));
-
-                    actions.replaceChildren(...buttons);
-                    return;
+                    return buttons;
                 }
 
                 if (download.status === "paused") {
-                    actions.replaceChildren(
+                    return [
                         createActionButton("primary-button", "Resume", "resumeDownload", download.id),
-                        createActionButton("secondary-button", "Cancel", "cancelDownload", download.id)
-                    );
-                    return;
+                        createActionButton("secondary-button", "Cancel", "cancelDownload", download.id),
+                    ];
                 }
 
-                if (download.status !== "completed") {
-                    actions.replaceChildren();
-                    return;
+                if (download.status === "failed") {
+                    return [
+                        createActionButton("primary-button", "Retry", "retryDownload", download.id),
+                        createActionButton("secondary-button", "Remove", "removeDownload", download.id),
+                    ];
                 }
 
-                actions.replaceChildren(
-                    createActionButton("primary-button", "Open", "openDownload", download.id),
-                    createActionButton("secondary-button", "Show in folder", "showDownloadInFolder", download.id)
-                );
-            }
+                if (download.status === "completed") {
+                    return [
+                        createActionButton("primary-button", "Open", "openDownload", download.id),
+                        createActionButton("secondary-button", "Show in folder", "showDownloadInFolder", download.id),
+                        createActionButton("secondary-button", "Remove", "removeDownload", download.id),
+                    ];
+                }
 
-            function createDownloadRow(download) {
-                const row = createElement("div", { className: "download-entry" }, [
-                    createElement("div", { className: "download-main" }, [
-                        createElement("div", {
-                            className: "download-title",
-                        }),
-                        createElement("div", {
-                            className: "download-url",
-                        }),
-                        createElement("div", {
-                            className: "download-destination",
-                        }),
-                        createElement("div", { className: "download-state" }, [
-                            createElement("div", { className: "download-progress" }, [
-                                createElement("progress"),
-                                createElement("div", { className: "download-segments" }),
-                            ]),
-                            createElement("span", {
-                                className: "download-status",
-                            }),
-                            createElement("span", {
-                                className: "download-detail",
-                            }),
-                        ]),
-                    ]),
-                    createElement("div", { className: "download-actions" }),
-                ]);
-
-                updateDownloadRow(row, download);
-                return row;
+                return [];
             }
 
             function updateSegments(segments, download) {
@@ -426,18 +639,42 @@
                 });
             }
 
+            function createDownloadRow(download) {
+                const row = createElement("tr", { className: "download-row" }, [
+                    createElement("td", { className: "col-name" }, [
+                        createElement("div", { className: "download-name" }),
+                        createElement("div", { className: "download-status-line" }, [
+                            createElement("span", { className: "download-status" }),
+                            createElement("span", { className: "download-detail" }),
+                        ]),
+                        createElement("div", { className: "download-progress" }, [
+                            createElement("progress"),
+                            createElement("div", { className: "download-segments" }),
+                        ]),
+                    ]),
+                    createElement("td", { className: "col-size cell-text" }),
+                    createElement("td", { className: "col-last-try cell-text" }),
+                    createElement("td", { className: "col-date-added cell-text" }),
+                    createElement("td", { className: "col-location cell-text" }),
+                    createElement("td", { className: "col-actions" }, [
+                        createElement("div", { className: "download-actions" }),
+                    ]),
+                ]);
+
+                updateDownloadRow(row, download);
+                return row;
+            }
+
             function updateDownloadRow(row, download) {
-                const title = row.querySelector(".download-title");
-                title.textContent = download.fileName;
-                title.title = download.fileName;
+                const name = row.querySelector(".download-name");
+                name.textContent = download.fileName;
+                name.title = download.fileName;
 
-                const url = row.querySelector(".download-url");
-                url.textContent = download.url;
-                url.title = download.url;
+                const status = row.querySelector(".download-status");
+                status.className = `download-status ${download.status}`;
+                status.textContent = statusLabel(download);
 
-                const destination = row.querySelector(".download-destination");
-                destination.textContent = download.destination;
-                destination.title = download.destination;
+                row.querySelector(".download-detail").textContent = detailLabel(download);
 
                 const progress = row.querySelector("progress");
                 const showProgress =
@@ -445,26 +682,117 @@
                     download.totalSize !== null &&
                     download.totalSize !== undefined &&
                     download.totalSize !== 0;
+                row.querySelector(".download-progress").hidden = !showProgress;
                 progress.hidden = !showProgress;
                 if (showProgress) {
                     progress.max = download.totalSize;
                     progress.value = Math.min(download.downloadedSize, download.totalSize);
                 }
-
                 updateSegments(row.querySelector(".download-segments"), download);
 
-                const status = row.querySelector(".download-status");
-                status.className = `download-status ${download.status}`;
-                status.textContent = statusLabel(download);
+                const sizeCell = row.querySelector(".col-size");
+                sizeCell.textContent = sizeCellLabel(download);
+                sizeCell.title = sizeCell.textContent;
 
-                row.querySelector(".download-detail").textContent = detailLabel(download);
-                updateActions(row.querySelector(".download-actions"), download);
+                const lastTryCell = row.querySelector(".col-last-try");
+                lastTryCell.textContent = dateLabel(download.lastTryTime);
+                lastTryCell.title = lastTryCell.textContent;
+
+                const dateAddedCell = row.querySelector(".col-date-added");
+                dateAddedCell.textContent = dateLabel(download.createdTime);
+                dateAddedCell.title = dateAddedCell.textContent;
+
+                const location = locationForDestination(download.destination);
+                const locationCell = row.querySelector(".col-location");
+                locationCell.textContent = location;
+                locationCell.title = download.destination;
+
+                const actionsId = `${download.status}:${download.canResume === true}`;
+                const actions = row.querySelector(".download-actions");
+                if (actions.dataset.actionsId !== actionsId) {
+                    actions.dataset.actionsId = actionsId;
+                    actions.replaceChildren(...actionsForDownload(download));
+                }
             }
 
-            function updateDownloadList(sortedDownloads) {
-                const downloadIds = new Set(sortedDownloads.map(download => download.id));
+            function matchesStatusFilter(download, filter) {
+                if (filter === "all") return true;
+                if (filter === "unfinished") return isUnfinished(download);
+                if (filter === "finished") return download.status === "completed";
+                return true;
+            }
+
+            function matchesCategoryFilter(download, filter) {
+                if (filter === "all") return true;
+                return categoryForFileName(download.fileName) === filter;
+            }
+
+            function compareDownloads(a, b) {
+                let result = 0;
+                switch (sortKey) {
+                    case "name":
+                        result = a.fileName.localeCompare(b.fileName);
+                        break;
+                    case "size":
+                        result = (a.totalSize || a.downloadedSize || 0) - (b.totalSize || b.downloadedSize || 0);
+                        break;
+                    case "lastTry":
+                        result = (a.lastTryTime || 0) - (b.lastTryTime || 0);
+                        break;
+                    case "location":
+                        result = locationForDestination(a.destination).localeCompare(
+                            locationForDestination(b.destination)
+                        );
+                        break;
+                    case "dateAdded":
+                    default:
+                        result = (a.createdTime || 0) - (b.createdTime || 0);
+                        break;
+                }
+                return sortDirection === "ascending" ? result : -result;
+            }
+
+            function updateSidebarCounts() {
+                const statusCounts = { all: downloads.length, unfinished: 0, finished: 0 };
+                const categoryCounts = { all: downloads.length };
+                for (const category of Object.keys(CATEGORY_EXTENSIONS)) categoryCounts[category] = 0;
+                categoryCounts.other = 0;
+
+                for (const download of downloads) {
+                    if (isUnfinished(download)) ++statusCounts.unfinished;
+                    else if (download.status === "completed") ++statusCounts.finished;
+
+                    ++categoryCounts[categoryForFileName(download.fileName)];
+                }
+
+                for (const item of document.querySelectorAll("#status-filters .sidebar-item")) {
+                    item.querySelector(".sidebar-count").textContent = statusCounts[item.dataset.filterValue] ?? 0;
+                    item.classList.toggle("active", item.dataset.filterValue === statusFilter);
+                }
+                for (const item of document.querySelectorAll("#category-filters .sidebar-item")) {
+                    item.querySelector(".sidebar-count").textContent = categoryCounts[item.dataset.filterValue] ?? 0;
+                    item.classList.toggle("active", item.dataset.filterValue === categoryFilter);
+                }
+            }
+
+            function updateSortHeaders() {
+                for (const header of downloadsTable.querySelectorAll("th[data-sort]")) {
+                    const isSorted = header.dataset.sort === sortKey;
+                    header.classList.toggle("sorted", isSorted);
+                    header.classList.toggle("descending", isSorted && sortDirection === "descending");
+                }
+            }
+
+            function render() {
+                const filteredDownloads = downloads.filter(
+                    download =>
+                        matchesStatusFilter(download, statusFilter) && matchesCategoryFilter(download, categoryFilter)
+                );
+                const sortedDownloads = [...filteredDownloads].sort(compareDownloads);
+
+                const visibleIds = new Set(sortedDownloads.map(download => download.id));
                 for (const [id] of downloadRows) {
-                    if (!downloadIds.has(id)) downloadRows.delete(id);
+                    if (!visibleIds.has(id)) downloadRows.delete(id);
                 }
 
                 const rows = sortedDownloads.map(download => {
@@ -482,32 +810,36 @@
                     if (downloadsList.children[index] !== row)
                         downloadsList.insertBefore(row, downloadsList.children[index] || null);
                 });
-
                 while (downloadsList.children.length > rows.length) downloadsList.lastChild.remove();
-            }
 
-            function render() {
-                const sortedDownloads = [...downloads].sort((a, b) => b.id - a.id);
+                updateSidebarCounts();
+                updateSortHeaders();
+
+                const completedCount = downloads.filter(download => download.status === "completed").length;
+                pruneInactiveDownloadsButton.disabled = completedCount === 0;
+
+                const isEmpty = sortedDownloads.length === 0;
+                downloadsTable.classList.toggle("hidden", isEmpty);
+                downloadsEmpty.classList.toggle("hidden", !isEmpty);
+                if (isEmpty) {
+                    downloadsEmpty.textContent =
+                        downloads.length === 0
+                            ? "Your downloaded files will show up here."
+                            : "No downloads match the current filters.";
+                }
+
                 const activeCount = downloads.filter(download => download.status === "in-progress").length;
                 const pausedCount = downloads.filter(download => download.status === "paused").length;
-                const inactiveCount = downloads.length - activeCount - pausedCount;
 
-                updateDownloadList(sortedDownloads);
-                pruneInactiveDownloadsButton.disabled = inactiveCount === 0;
-
-                const isEmpty = downloads.length === 0;
-                downloadsEmpty.classList.toggle("hidden", !isEmpty);
-                downloadsEmpty.textContent = "Files you download in this session will show up here.";
-
-                if (isEmpty) {
+                if (downloads.length === 0) {
                     downloadsStatus.textContent = "No downloads yet.";
                 } else if (activeCount > 0) {
                     const paused = pausedCount > 0 ? `, ${pausedCount} paused` : "";
-                    downloadsStatus.textContent = `${pluralize(activeCount, "active download")}${paused} - ${pluralize(downloads.length, "item")} total.`;
+                    downloadsStatus.textContent = `${pluralize(activeCount, "active download")}${paused} - ${pluralize(downloads.length, "download")} total.`;
                 } else if (pausedCount > 0) {
-                    downloadsStatus.textContent = `${pluralize(pausedCount, "paused download")} - ${pluralize(downloads.length, "item")} total.`;
+                    downloadsStatus.textContent = `${pluralize(pausedCount, "paused download")} - ${pluralize(downloads.length, "download")} total.`;
                 } else {
-                    downloadsStatus.textContent = `${pluralize(downloads.length, "download")} in this session.`;
+                    downloadsStatus.textContent = pluralize(downloads.length, "download");
                 }
             }
 
@@ -525,6 +857,30 @@
                 downloads = downloads.filter(download => download.id !== downloadId);
                 downloadRows.delete(downloadId);
                 render();
+            }
+
+            for (const group of document.querySelectorAll("[data-filter-group]")) {
+                group.addEventListener("click", event => {
+                    const item = event.target.closest(".sidebar-item");
+                    if (!item) return;
+
+                    if (group.dataset.filterGroup === "status") statusFilter = item.dataset.filterValue;
+                    else categoryFilter = item.dataset.filterValue;
+
+                    render();
+                });
+            }
+
+            for (const header of downloadsTable.querySelectorAll("th[data-sort]")) {
+                header.addEventListener("click", () => {
+                    if (sortKey === header.dataset.sort) {
+                        sortDirection = sortDirection === "ascending" ? "descending" : "ascending";
+                    } else {
+                        sortKey = header.dataset.sort;
+                        sortDirection = "ascending";
+                    }
+                    render();
+                });
             }
 
             pruneInactiveDownloadsButton.addEventListener("click", () => {
